@@ -4,7 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GymTrack">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="gymtrack.PNG">
+<link rel="apple-touch-icon" sizes="180x180" href="gymtrack.PNG">
+<link rel="apple-touch-icon" sizes="152x152" href="gymtrack.PNG">
+<link rel="apple-touch-icon" sizes="120x120" href="gymtrack.PNG">
+<link rel="icon" type="image/png" href="gymtrack.PNG">
+<link rel="shortcut icon" href="gymtrack.PNG">
+<link rel="manifest" href='data:application/manifest+json,{"name":"GymTrack","short_name":"GymTrack","start_url":"./","display":"standalone","background_color":"%23000000","theme_color":"%23000000","icons":[{"src":"gymtrack.PNG","sizes":"192x192","type":"image/png"},{"src":"gymtrack.PNG","sizes":"512x512","type":"image/png"}]}'>
 <title>GymTrack</title>
 <style>
 :root{--bg:#000;--bg2:#0c0c10;--bg3:#16161c;--card:#1a1a22;--card2:#22222e;--border:#2a2a36;--accent:#ff3b30;--accent2:#ff6b35;--aglow:rgba(255,59,48,.12);--text:#f8f8fb;--text2:#9595a8;--text3:#5a5a70;--ok:#34c759;--blue:#0a84ff;--purple:#bf5af2;--gold:#ffd60a;--r:16px;--rs:10px}
@@ -796,14 +806,28 @@ function suggestNext(name){
   return{kg:last.kg,reps:Math.min(last.reps+1,15),reason:"reps verhogen"};
 }
 
-// Warmup calculator: returns warm-up sets for a working weight
-function calcWarmup(workKg){
-  if(workKg<20)return null;
+// Warmup calculator: smart - only for heavy compounds, only first time in session
+// List of main compounds that benefit from proper warm-up
+var COMPOUNDS=["Squat","Front Squat","Deadlift","Sumo Deadlift","Romanian Deadlift","Bench Press","Incline Bench Press","Decline Bench Press","Overhead Press","Push Press","Barbell Row","Pendlay Row","T-Bar Row","Weighted Pull-Ups"];
+function isCompound(name){return COMPOUNDS.indexOf(name)>=0;}
+function calcWarmup(workKg,exName,exIdx){
+  // Only for compounds at meaningful weight
+  if(!isCompound(exName))return null;
+  if(workKg<60)return null;
+  // Only show on first compound of the session (check earlier exercises)
+  if(exIdx>0&&liveEx){
+    for(var i=0;i<exIdx;i++){
+      if(liveEx[i]&&isCompound(liveEx[i].name)&&liveEx[i].sets[0]&&liveEx[i].sets[0].kg>=60){
+        return null; // already had a heavy compound earlier
+      }
+    }
+  }
   var sets=[];
-  if(workKg>=40)sets.push({kg:Math.round((workKg*0.5)/2.5)*2.5,reps:8});
-  if(workKg>=60)sets.push({kg:Math.round((workKg*0.7)/2.5)*2.5,reps:5});
-  if(workKg>=80)sets.push({kg:Math.round((workKg*0.85)/2.5)*2.5,reps:3});
-  return sets.length?sets:null;
+  sets.push({kg:20,reps:8}); // empty bar / very light
+  sets.push({kg:Math.round((workKg*0.5)/2.5)*2.5,reps:5});
+  if(workKg>=80)sets.push({kg:Math.round((workKg*0.75)/2.5)*2.5,reps:3});
+  if(workKg>=100)sets.push({kg:Math.round((workKg*0.9)/2.5)*2.5,reps:1});
+  return sets;
 }
 
 // Volume per muscle this week for active program
@@ -1025,7 +1049,7 @@ function buildExHTML(prevSess){
     var workKg=ex.sets[0]?ex.sets[0].kg:0;
     var warmupHtml="";
     if(S.warmup){
-      var wu=calcWarmup(workKg);
+      var wu=calcWarmup(workKg,ex.name,ei);
       if(wu){
         warmupHtml='<div class="warmup-row"><strong>🔥 Warm-up:</strong> '+wu.map(function(s){return s.kg+'kg × '+s.reps;}).join(" → ")+'</div>';
       }
